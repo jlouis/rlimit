@@ -18,7 +18,8 @@
 %% multiple intervals.
 
 %% exported functions
--export([new/3, join/1, wait/2, atake/3, take/2, set_limit/2]).
+-export([new/3, join/1, wait/2, atake/3, take/2,
+         get_limit/1, set_limit/2, prev_allowed/1]).
 
 %% private functions
 -export([reset/1]).
@@ -36,7 +37,11 @@ new(Name, Limit, Interval) ->
         {burst, 5 * Limit},
         {fair, Limit div 5}, %% Should be limit / size(group)
         {tokens, Limit * 5},
-        {timer, TRef}]),
+        {timer, TRef},
+        %% How many allowed during the current interval
+        {allowed, 0},
+        %% How many allowed during the previous interval
+        {prev_allowed, 0}]),
     ok.
 
 
@@ -48,6 +53,14 @@ set_limit(Name, Limit) ->
         {fair, Limit div 5}, %% Should be limit / size(group)
         {tokens, Limit * 5}]),
     ok.
+
+
+get_limit(Name) ->
+    ets:lookup_element(Name, limit, 2).
+
+
+prev_allowed(Name) ->
+    ets:lookup_element(Name, prev_allowed, 2).
 
 
 %% @private Reset the token counter of a flow.
@@ -63,6 +76,9 @@ reset(Name) ->
     %% us from huge bursts after idle intervals. The default is to only accumulate
     %% five intervals worth of tokens in the bucket.
     Burst = ets:lookup_element(Name, burst, 2),
+    Allowed = ets:lookup_element(Name, allowed, 2),
+    ets:insert(Name, {prev_allowed, Allowed}),
+    ets:update_counter(Name, allowed, {2,-Allowed}),
     ets:update_counter(Name, tokens, {2,Limit,Burst,Burst}).
 
 
@@ -129,6 +145,7 @@ take(N, Name, Limit, Version) when N >= 0 ->
                 %% Allow message if the random number falls within
                 %% the range of tokens left in the bucket after take.
                 Rand when Rand =< Tokens ->
+                    ets:update_counter(Name, allowed, {2,M}),
                     ok;
                  %% Disallow message if the random number falls within
                  %% the range of the tokens taken from the bucket.
