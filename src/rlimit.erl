@@ -18,7 +18,7 @@
 %% multiple intervals.
 
 %% exported functions
--export([new/3, join/1, wait/2, atake/3, take/2]).
+-export([new/3, join/1, wait/2, atake/3, take/2, set_limit/2]).
 
 %% private functions
 -export([reset/1]).
@@ -37,6 +37,16 @@ new(Name, Limit, Interval) ->
         {fair, Limit div 5}, %% Should be limit / size(group)
         {tokens, Limit * 5},
         {timer, TRef}]),
+    ok.
+
+
+%% @doc Update a maximum speed.
+set_limit(Name, Limit) ->
+    ets:insert(Name, [
+        {limit, Limit},
+        {burst, 5 * Limit},
+        {fair, Limit div 5}, %% Should be limit / size(group)
+        {tokens, Limit * 5}]),
     ok.
 
 
@@ -91,10 +101,10 @@ atake(N, Message, Name) ->
 take(N, Name) when is_integer(N), N >= 0, is_atom(Name) ->
     Limit = ets:lookup_element(Name, limit, 2),
     Version = ets:lookup_element(Name, version, 2),
-    Before = now(),
+%   Before = now(),
     ok = take(N, Name, Limit, Version),
-    After = now(),
-    _Delay = timer:now_diff(After, Before),
+%   After = now(),
+%   _Delay = timer:now_diff(After, Before),
     ok.
 
 take(_N, _Name, infinity, _Version) ->
@@ -133,10 +143,7 @@ take(N, Name, Limit, Version) when N >= 0 ->
 %% This ensures that we can send messages that are larger than
 %% the Limit/Burst of a flow.
 -spec slice(non_neg_integer(), non_neg_integer()) -> non_neg_integer().
-slice(Tokens, Limit) when Tokens > Limit ->
-    Limit;
-slice(Tokens, Limit) when Tokens =< Limit ->
-    Tokens.
+slice(Tokens, Limit) -> min(Tokens,  Limit).
 
 
 -ifdef(TEST).
