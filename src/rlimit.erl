@@ -88,9 +88,7 @@ reset(Name) ->
 %% @end
 -spec join(atom()) -> ok.
 join(_Name) ->
-    random:seed(now()),
     ok.
-
 
 %% @doc Wait until the start of the next interval.
 %% @end
@@ -141,7 +139,7 @@ take(N, Name, Limit, Version) when N >= 0 ->
             %% receiving service, avoiding starvation from larger data protocol
             %% messages consuming the rate of entire intervals when a low rate
             %% is used.
-            case random:uniform(Previous) of
+            case rand:uniform(Previous) of
                 %% Allow message if the random number falls within
                 %% the range of tokens left in the bucket after take.
                 Rand when Rand =< Tokens ->
