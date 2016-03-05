@@ -34,9 +34,9 @@ new(Name, Limit, Interval) ->
     ets:insert(Name, [
         {version, 0},
         {limit, Limit},
-        {burst, 5 * Limit},
-        {fair, Limit div 5}, %% Should be limit / size(group)
-        {tokens, Limit * 5},
+        {burst, burst(Limit)},
+        {fair, fair(Limit)}, %% Should be limit / size(group)
+        {tokens, tokens(Limit)},
         {timer, TRef},
         %% How many allowed during the current interval
         {allowed, 0},
@@ -49,9 +49,9 @@ new(Name, Limit, Interval) ->
 set_limit(Name, Limit) ->
     ets:insert(Name, [
         {limit, Limit},
-        {burst, 5 * Limit},
-        {fair, Limit div 5}, %% Should be limit / size(group)
-        {tokens, Limit * 5}]),
+        {burst, burst(Limit)},
+        {fair, fair(Limit)}, %% Should be limit / size(group)
+        {tokens, tokens(Limit)}]),
     ok.
 
 
@@ -88,9 +88,7 @@ reset(Name) ->
 %% @end
 -spec join(atom()) -> ok.
 join(_Name) ->
-    random:seed(now()),
     ok.
-
 
 %% @doc Wait until the start of the next interval.
 %% @end
@@ -141,7 +139,7 @@ take(N, Name, Limit, Version) when N >= 0 ->
             %% receiving service, avoiding starvation from larger data protocol
             %% messages consuming the rate of entire intervals when a low rate
             %% is used.
-            case random:uniform(Previous) of
+            case rand:uniform(Previous) of
                 %% Allow message if the random number falls within
                 %% the range of tokens left in the bucket after take.
                 Rand when Rand =< Tokens ->
@@ -161,3 +159,36 @@ take(N, Name, Limit, Version) when N >= 0 ->
 %% the Limit/Burst of a flow.
 -spec slice(non_neg_integer(), non_neg_integer()) -> non_neg_integer().
 slice(Tokens, Limit) -> min(Tokens,  Limit).
+
+%% @private
+-spec burst(Limit) -> Burst
+    when
+        Limit :: non_neg_integer() | infinity,
+        Burst :: non_neg_integer() | infinity.
+burst(infinity) ->
+    infinity;
+
+burst(Limit) ->
+    Limit * 5.
+
+%% @private
+-spec tokens(Limit) -> Tokens
+    when
+        Limit  :: non_neg_integer() | infinity,
+        Tokens :: non_neg_integer() | infinity.
+tokens(infinity) ->
+    infinity;
+
+tokens(Limit) ->
+    Limit * 5.
+
+%% @private
+-spec fair(Limit) -> Fair
+    when
+        Limit :: non_neg_integer() | infinity,
+        Fair  :: non_neg_integer() | infinity.
+fair(infinity) ->
+    infinity;
+
+fair(Limit) ->
+    Limit div 5.
